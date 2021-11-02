@@ -60,8 +60,7 @@ var (
 	fsHeaderSafetyNet      = 2048            // Number of headers to discard in case a chain violation is detected
 	fsHeaderForceVerify    = 24              // Number of headers to verify before and after the pivot to accept it
 	fsHeaderContCheck      = 3 * time.Second // Time interval to check for header continuations during state download
-	// fsMinFullBlocks        = 13401991        // Number of blocks to retrieve fully even in fast sync
-	fsMinFullBlocks = 64 // Number of blocks to retrieve fully even in fast sync
+	fsMinFullBlocks        = 64              // Number of blocks to retrieve fully even in fast sync
 )
 
 var (
@@ -555,8 +554,6 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		func() error { return d.fetchReceipts(origin + 1) }, // Receipts are retrieved during fast sync
 		func() error { return d.processHeaders(origin+1, td) },
 	}
-
-	// Could be stopped here as well?
 	if mode == FastSync {
 		d.pivotLock.Lock()
 		d.pivotHeader = pivot
@@ -1627,8 +1624,6 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 					}
 					d.pivotLock.RUnlock()
 
-					log.Error("Pivottt", "pivot", pivot)
-
 					frequency := fsHeaderCheckFrequency
 					if chunk[len(chunk)-1].Number.Uint64()+uint64(fsHeaderForceVerify) > pivot {
 						frequency = 1
@@ -1711,11 +1706,8 @@ func (d *Downloader) processFullSyncContent() error {
 func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	// Check for any early termination requests
 	if len(results) == 0 {
-		log.Error("Resultst emptyy")
 		return nil
 	}
-
-	log.Error("Hopeee1")
 
 	select {
 	case <-d.quitCh:
@@ -1723,11 +1715,8 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	default:
 	}
 
-	log.Error("Hopeee")
-
 	// Retrieve the a batch of results to import
 	first, last := results[0].Header, results[len(results)-1].Header
-	// Intresting log
 	log.Debug("Inserting downloaded chain", "items", len(results),
 		"firstnum", first.Number, "firsthash", first.Hash(),
 		"lastnum", last.Number, "lasthash", last.Hash(),
@@ -1738,13 +1727,13 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	}
 	if index, err := d.blockchain.InsertChain(blocks); err != nil {
 		if index < len(results) {
-			log.Debug("Downloaded item processing failed1", "number", results[index].Header.Number, "hash", results[index].Header.Hash(), "err", err)
+			log.Debug("Downloaded item processing failed", "number", results[index].Header.Number, "hash", results[index].Header.Hash(), "err", err)
 		} else {
 			// The InsertChain method in blockchain.go will sometimes return an out-of-bounds index,
 			// when it needs to preprocess blocks to import a sidechain.
 			// The importer will put together a new list of blocks to import, which is a superset
 			// of the blocks delivered from the downloader, and the indexing will be off.
-			log.Debug("Downloaded item processing failed1 on sidechain import", "index", index, "err", err)
+			log.Debug("Downloaded item processing failed on sidechain import", "index", index, "err", err)
 		}
 		return fmt.Errorf("%w: %v", errInvalidChain, err)
 	}
@@ -1877,115 +1866,36 @@ func (d *Downloader) processFastSyncContent() error {
 				rawdb.WriteLastPivotNumber(d.stateDB, pivot.Number.Uint64())
 			}
 		}
-
-		// 	aaa := append([]*fetchResult{P}, afterP...)
-		// 	if err := d.importBlockResults(aaa); err != nil {
-		// 		log.Error("STOPPPING 111", "beforeP", len(beforeP), "afterP", len(afterP))
-		// 		return err
-		// 	}
-
-		// 	// time.Sleep(30000)
-
-		// 	log.Error("STOPPPING GetBlockByHash", "beforeP", d.blockchain.GetBlockByHash(P.Header.Hash()) == nil)
-		// 	log.Error("STOPPPING GetBlockByHash", "beforeP", d.blockchain.GetBlockByHash(P.Header.Hash()).Root())
-
-		// 	fmt.Println("STOPPPING GetBlockByHash P", "beforeP", P.Header.Hash())
-		// 	fmt.Println("STOPPPING GetBlockByHash P", "beforeP", P.Header.Root)
-
-		// 	fmt.Println("STOPPPING GetBlockByHash afterP[0]", "beforeP", afterP[0].Header.Hash())
-		// 	fmt.Println("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(afterP[0].Header.Hash()).Hash())
-		// 	fmt.Println("STOPPPING GetBlockByHash afterP[0]", "beforeP", afterP[0].Header.Root)
-
-		// 	log.Error("STOPPPING GetBlockByHash", "beforeP", d.blockchain.GetBlockByHash(d.blockchain.GetBlockByHash(P.Header.Hash()).Root()) == nil)
-		// 	log.Error("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(afterP[0].Header.Hash()) == nil)
-		// 	log.Error("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(afterP[0].Header.Hash()).Root())
-		// 	log.Error("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(d.blockchain.GetBlockByHash(afterP[0].Header.Hash()).Root()) == nil)
-
-		// 	d.pixelPlexStop = true
-		// }
-
 		P, beforeP, afterP := splitAroundPivot(pivot.Number.Uint64(), results)
 		if err := d.commitFastSyncData(beforeP, sync); err != nil {
 			return err
 		}
 		if P != nil {
-			log.Error("Pivottt asd", "pivot", P.Header.Number.Uint64(), "beforeP", len(beforeP), "afterP", len(afterP))
-
 			// If new pivot block found, cancel old state retrieval and restart
 			if oldPivot != P {
-				log.Error("Pivottt 111111111")
 				sync.Cancel()
 				sync = d.syncState(P.Header.Root)
 
 				go closeOnErr(sync)
 				oldPivot = P
 			}
-
-			// Fast sync done, pivot commit done, full import
-			log.Error("Pivottt HEEEAER 1", "beforeP", len(beforeP), "afterP", len(afterP))
-
-			// sync.Cancel()
-
-			// return nil
-
 			// Wait for completion, occasionally checking for pivot staleness
 			select {
 			case <-sync.done:
-				log.Error("Pivottt 3333333333")
-
 				if sync.err != nil {
 					return sync.err
 
 				}
-				log.Error("Pivottt 22222222")
 				if err := d.commitPivotBlock(P); err != nil {
 					return err
 				}
 				oldPivot = nil
-
-				log.Error("AFteraaaa Done")
 			case <-time.After(time.Second):
-				log.Error("AFteraaaa")
-
-				// if !d.pixelPlexStop {
-				// 	aaa := append([]*fetchResult{P}, afterP...)
-				// 	if err := d.importBlockResults(aaa); err != nil {
-				// 		log.Error("STOPPPING 111", "beforeP", len(beforeP), "afterP", len(afterP))
-				// 		return err
-				// 	}
-
-				// 	log.Error("STOPPPING", "beforeP", len(beforeP), "afterP", len(afterP))
-
-				// 	// time.Sleep(30000)
-
-				// 	log.Error("STOPPPING GetBlockByHash", "beforeP", d.blockchain.GetBlockByHash(P.Header.Hash()) == nil)
-				// 	log.Error("STOPPPING GetBlockByHash", "beforeP", d.blockchain.GetBlockByHash(P.Header.Hash()).Root())
-
-				// 	fmt.Println("STOPPPING GetBlockByHash P", "beforeP", P.Header.Hash())
-				// 	fmt.Println("STOPPPING GetBlockByHash P", "beforeP", P.Header.Root)
-
-				// 	fmt.Println("STOPPPING GetBlockByHash afterP[0]", "beforeP", afterP[0].Header.Hash())
-				// 	fmt.Println("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(afterP[0].Header.Hash()).Hash())
-				// 	fmt.Println("STOPPPING GetBlockByHash afterP[0]", "beforeP", afterP[0].Header.Root)
-
-				// 	log.Error("STOPPPING GetBlockByHash", "beforeP", d.blockchain.GetBlockByHash(d.blockchain.GetBlockByHash(P.Header.Hash()).Root()) == nil)
-				// 	log.Error("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(afterP[0].Header.Hash()) == nil)
-				// 	log.Error("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(afterP[0].Header.Hash()).Root())
-				// 	log.Error("STOPPPING GetBlockByHash afterP[0]", "beforeP", d.blockchain.GetBlockByHash(d.blockchain.GetBlockByHash(afterP[0].Header.Hash()).Root()) == nil)
-
-				// 	d.pixelPlexStop = true
-				// }
-
-				// return sync.Cancel()
-				// sync.Cancel()
-
 				oldTail = afterP
 				continue
 			}
 		}
 		// Fast sync done, pivot commit done, full import
-		log.Error("Pivottt HEEEAER", "beforeP", len(beforeP), "afterP", len(afterP))
-
 		if err := d.importBlockResults(afterP); err != nil {
 			return err
 		}

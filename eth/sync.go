@@ -113,8 +113,6 @@ func (cs *chainSyncer) loop() {
 	defer cs.force.Stop()
 
 	for {
-		// ...  sync with a pear starts here and it seems to be not Async
-		// Meaning we are syncing with 1 peer at a time.
 		if op := cs.nextSyncOp(); op != nil {
 			cs.startSync(op)
 		}
