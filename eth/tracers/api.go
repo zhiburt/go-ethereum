@@ -546,10 +546,14 @@ func (api *API) StandardTraceBadBlockToFile(ctx context.Context, hash common.Has
 // executes all the transactions contained within. The return value will be one item
 // per transaction, dependent on the requestd tracer.
 func (api *API) traceBlock(ctx context.Context, block *types.Block, config *TraceConfig) ([]*txTraceResult, error) {
+	log.Error("traceBlock", "a", block.NumberU64())
+
 	if block.NumberU64() == 0 {
 		return nil, errors.New("genesis is not traceable")
 	}
 	parent, err := api.blockByNumberAndHash(ctx, rpc.BlockNumber(block.NumberU64()-1), block.ParentHash())
+	log.Error("traceBlock parent", "a", parent.NumberU64())
+
 	if err != nil {
 		return nil, err
 	}
@@ -757,10 +761,13 @@ func containsTx(block *types.Block, hash common.Hash) bool {
 // TraceTransaction returns the structured logs created during the execution of EVM
 // and returns them as a JSON object.
 func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *TraceConfig) (interface{}, error) {
+	log.Error("TraceTransaction hash", "hash", hash)
 	_, blockHash, blockNumber, index, err := api.backend.GetTransaction(ctx, hash)
+	log.Error("TraceTransaction", "a", blockHash, "blockNumber", blockNumber, "i", index,"e", err)
 	if err != nil {
 		return nil, err
 	}
+
 	// It shouldn't happen in practice.
 	if blockNumber == 0 {
 		return nil, errors.New("genesis is not traceable")

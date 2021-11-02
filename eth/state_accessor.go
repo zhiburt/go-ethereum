@@ -45,6 +45,7 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 	// Check the live database first if we have the state fully available, use that.
 	if checkLive {
 		statedb, err = eth.blockchain.StateAt(block.Root())
+		log.Error("JJJ", "SSSSSSSSSSSSSSSSSSSS", err)
 		if err == nil {
 			return statedb, nil
 		}
@@ -72,6 +73,8 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 		}
 		// Database does not have the state for the given block, try to regenerate
 		for i := uint64(0); i < reexec; i++ {
+			log.Error("JJJ", "missing", current.NumberU64())
+
 			if current.NumberU64() == 0 {
 				return nil, errors.New("genesis state is missing")
 			}

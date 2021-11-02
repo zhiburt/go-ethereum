@@ -780,6 +780,12 @@ var (
 		Name:  "catalyst",
 		Usage: "Catalyst mode (eth2 integration testing)",
 	}
+
+	FastSyncBarrierFlag = cli.Uint64Flag{
+		Name:  "fastsync.barrier",
+		Usage: "A custom pivot block number. Must be decimal (0 = no limit)",
+		Value: 0,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1508,6 +1514,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	cfg.DatabaseHandles = MakeDatabaseHandles()
 	if ctx.GlobalIsSet(AncientFlag.Name) {
 		cfg.DatabaseFreezer = ctx.GlobalString(AncientFlag.Name)
+	}
+
+	if ctx.GlobalIsSet(FastSyncBarrierFlag.Name) {
+		cfg.FastSyncBarrier = ctx.GlobalUint64(FastSyncBarrierFlag.Name)
+		log.Debug("A was sync barrier was set", "barrier", cfg.FastSyncBarrier)
 	}
 
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {

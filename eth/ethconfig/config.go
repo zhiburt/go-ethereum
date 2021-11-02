@@ -204,6 +204,9 @@ type Config struct {
 
 	// Berlin block override (TODO: remove after the fork)
 	OverrideLondon *big.Int `toml:",omitempty"`
+
+	// Fast && Snap sync options
+	FastSyncBarrier uint64
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.

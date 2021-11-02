@@ -165,6 +165,7 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+	// EVENTUALLY We are here
 	if evm.Config.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
