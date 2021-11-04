@@ -149,7 +149,8 @@ type Downloader struct {
 	receiptFetchHook func([]*types.Header) // Method to call upon starting a receipt fetch
 	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
 
-	fastSyncBarrier uint64 // A barrier value which will be used as a pivot in a fast sync mode
+	fastSyncBarrier           uint64 // A barrier value which will be used as a pivot in a fast sync mode
+	fastSyncBarrierWasReached int32
 }
 
 // LightChain encapsulates functions required to synchronise a light chain.
@@ -233,8 +234,9 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		syncStatsState: stateSyncStats{
 			processed: rawdb.ReadFastTrieProgress(stateDb),
 		},
-		trackStateReq:   make(chan *stateReq),
-		fastSyncBarrier: fastSyncBarrier,
+		trackStateReq:             make(chan *stateReq),
+		fastSyncBarrier:           fastSyncBarrier,
+		fastSyncBarrierWasReached: 0,
 	}
 	go dl.stateFetcher()
 	return dl
@@ -1790,43 +1792,6 @@ func (d *Downloader) processFastSyncContent() error {
 			d.chainInsertHook(results)
 		}
 
-		barrierReached := false
-		if d.fastSyncBarrier > 0 {
-			for i := range results {
-				if results[i].Header.Number.Uint64() > d.fastSyncBarrier {
-					barrierReached = true
-					break
-				}
-			}
-		}
-
-		if barrierReached {
-			// We intentionally fetch all blocks in available in a full mode
-			// meaing some blocks before barrier might be fetched in a full mode.
-
-			first, last := results[0].Header, results[len(results)-1].Header
-			log.Error("Inserting full-fast-sync blocks after being in fast mode", "items", len(results),
-				"firstnum", first.Number, "firsthash", first.Hash(),
-				"lastnumn", last.Number, "lasthash", last.Hash(),
-				"fastSyncBarrier", d.fastSyncBarrier,
-			)
-
-			log.Error("STOPPPING 111", "beforeP", len(results), "afterP", len(results))
-			if err := d.importBlockResults(results); err != nil {
-				return err
-			}
-
-			d.pivotLock.RLock()
-			pivot := d.pivotHeader
-			d.pivotLock.RUnlock()
-
-			if pivot.Number.Uint64() > results[0].Header.Number.Uint64() {
-				d.commitPivotBlock(results[0])
-			}
-
-			continue
-		}
-
 		// If we haven't downloaded the pivot block yet, check pivot staleness
 		// notifications from the header downloader
 		d.pivotLock.RLock()
@@ -1866,6 +1831,31 @@ func (d *Downloader) processFastSyncContent() error {
 				rawdb.WriteLastPivotNumber(d.stateDB, pivot.Number.Uint64())
 			}
 		}
+
+		barrierReached := false
+		if d.fastSyncBarrier > 0 {
+			for i := range results {
+				if results[i].Header.Number.Uint64() > d.fastSyncBarrier {
+					barrierReached = true
+					break
+				}
+			}
+		}
+
+		if barrierReached {
+			// We intentionally fetch all blocks in available in a full mode
+			// meaing some blocks before barrier might be fetched in a full mode.
+			first, last := results[0].Header, results[len(results)-1].Header
+			log.Error("Inserting full-fast-sync blocks after being in fast mode", "items", len(results),
+				"firstnum", first.Number, "firsthash", first.Hash(),
+				"lastnumn", last.Number, "lasthash", last.Hash(),
+				"fastSyncBarrier", d.fastSyncBarrier,
+			)
+			if err := d.importBlockResults(results); err != nil {
+				return err
+			}
+		}
+
 		P, beforeP, afterP := splitAroundPivot(pivot.Number.Uint64(), results)
 		if err := d.commitFastSyncData(beforeP, sync); err != nil {
 			return err
